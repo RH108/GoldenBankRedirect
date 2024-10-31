@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Callback</title>
+</head>
+<body>
+    <h1>OAuth Callback</h1>
+    <div id="status"></div>
+    <script>
+        // Replace these values with your app's credentials
+        const discordClientId = process.env.discordClientId; // Your Discord Client ID
+        const discordClientSecret = process.env.discordClientSecret; // Your Discord Client Secret
+        const robloxClientId = process.env.robloxClientId; // Your Roblox Client ID
+        const robloxClientSecret = process.env.robloxClientSecret; // Your Roblox Client Secret
+        const redirectUri = process.env.redirectUri; // Your redirect URI
+
+        // Function to extract URL parameters
+        function getQueryParams() {
+            const params = {};
+            window.location.search.substr(1).split("&").forEach(function(item) {
+                const parts = item.split("=");
+                params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1]);
+            });
+            return params;
+        }
+
+        // Exchange authorization code for access token (Discord)
+        async function getDiscordAccessToken(authCode) {
+            const tokenUrl = 'https://discord.com/api/oauth2/token';
+            const body = new URLSearchParams({
+                'client_id': discordClientId,
+                'client_secret': discordClientSecret,
+                'grant_type': 'authorization_code',
+                'code': authCode,
+                'redirect_uri': redirectUri,
+                'scope': 'identify email' // Adjust scopes as needed
+            });
+
+            try {
+                const response = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString()
+                });
+
+                if (!response.ok) {
+                    throw new Error('Discord token request failed: ' + response.statusText);
+                }
+
+                const data = await response.json();
+                return data.access_token;
+            } catch (error) {
+                console.error('Error getting Discord access token:', error);
+                document.getElementById('status').innerText = 'Error getting Discord access token: ' + error.message;
+            }
+        }
+
+        // Exchange authorization code for access token (Roblox)
+        async function getRobloxAccessToken(authCode) {
+            const tokenUrl = 'https://www.roblox.com/oauth/access_token';
+            const body = new URLSearchParams({
+                'grant_type': 'authorization_code',
+                'code': authCode,
+                'redirect_uri': redirectUri,
+                'client_id': robloxClientId,
+                'client_secret': robloxClientSecret
+            });
+
+            try {
+                const response = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString()
+                });
+
+                if (!response.ok) {
+                    throw new Error('Roblox token request failed: ' + response.statusText);
+                }
+
+                const data = await response.json();
+                return data.access_token;
+            } catch (error) {
+                console.error('Error getting Roblox access token:', error);
+                document.getElementById('status').innerText = 'Error getting Roblox access token: ' + error.message;
+            }
+        }
+
+        // Main function to handle the OAuth process
+        async function handleOAuth() {
+            const params = getQueryParams();
+            const discordAuthCode = params.code; // Discord code
+            const robloxAuthCode = params.roblox_code; // Roblox code, if applicable
+
+            if (discordAuthCode) {
+                document.getElementById('status').innerText = 'Discord authorization code received. Exchanging for access token...';
+                const discordAccessToken = await getDiscordAccessToken(discordAuthCode);
+
+                if (discordAccessToken) {
+                    document.getElementById('status').innerText += ' Discord access token received: ' + discordAccessToken;
+                    // Use the Discord access token to interact with the Discord API
+                }
+            }
+
+            if (robloxAuthCode) {
+                document.getElementById('status').innerText += ' Roblox authorization code received. Exchanging for access token...';
+                const robloxAccessToken = await getRobloxAccessToken(robloxAuthCode);
+
+                if (robloxAccessToken) {
+                    document.getElementById('status').innerText += ' Roblox access token received: ' + robloxAccessToken;
+                    // Use the Roblox access token to interact with the Roblox API
+                }
+            }
+
+            if (!discordAuthCode && !robloxAuthCode) {
+                document.getElementById('status').innerText = 'No authorization code found in URL.';
+            }
+        }
+
+        // Call the main function on page load
+        handleOAuth();
+    </script>
+</body>
+</html>
